@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8">
+
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+  <meta name="theme-color" content="#087e83">
+  <meta name="description"
+        content="MedLembre: lembrete de medicamentos com histórico, alarmes e acessibilidade.">
+
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="MedLembre">
+
+  <title>MedLembre | Entrar</title>
+
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="assets/icons/favicon-32.png" sizes="32x32">
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+
+  <link rel="stylesheet" href="css/style.css">
+
+  <script src="js/config.js"></script>
+  <script type="module" src="js/script.js"></script>
+</head>
+
+<body class="tela-auth">
+
+  <main class="auth-shell">
+
+    <header class="auth-hero">
+      <div class="auth-logo" aria-hidden="true">💊</div>
+      <h1>Med<span>Lembre</span></h1>
+      <p>Seu cuidado, no seu tempo.</p>
+    </header>
+
+    <section class="card auth-card">
+
+      <!-- Login com Google -->
+      <button type="button" id="btnGoogle" class="btn-google">
+        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="#4285F4"
+            d="M21.35 12.2c0-.64-.06-1.25-.17-1.84H12v3.48h5.25a4.5 4.5 0 0 1-1.95 2.95v2.45h3.16c1.85-1.71 2.89-4.23 2.89-7.04Z"/>
+          <path fill="#34A853"
+            d="M12 21.7c2.64 0 4.86-.87 6.48-2.46l-3.16-2.45c-.88.59-2 .95-3.32.95-2.55 0-4.72-1.72-5.5-4.03H3.24v2.53A9.8 9.8 0 0 0 12 21.7Z"/>
+          <path fill="#FBBC05"
+            d="M6.5 13.71a5.9 5.9 0 0 1 0-3.42V7.76H3.24a9.8 9.8 0 0 0 0 8.48l3.26-2.53Z"/>
+          <path fill="#EA4335"
+            d="M12 6.26c1.44 0 2.73.5 3.74 1.47l2.8-2.8A9.42 9.42 0 0 0 12 2.3a9.8 9.8 0 0 0-8.76 5.46l3.26 2.53c.78-2.31 2.95-4.03 5.5-4.03Z"/>
+        </svg>
+
+        <span>Entrar com Google</span>
+      </button>
+
+      <div class="divisor">
+        <span>ou use seu e-mail</span>
+      </div>
+
+      <form id="formCadastro" novalidate>
+
+        <div id="grupoNome">
+          <label for="nomeCompleto">Seu nome</label>
+          <input
+            type="text"
+            id="nomeCompleto"
+            name="nomeCompleto"
+            placeholder="Ex.: Maria Souza"
+            autocomplete="name"
+            maxlength="80"
+          >
+        </div>
+
+        <label for="email">E-mail</label>
+        <input
+          type="email"
+          id="email"
+          name="email"
+          placeholder="voce@exemplo.com"
+          autocomplete="email"
+          inputmode="email"
+          required
+        >
+
+        <label for="senha">Senha</label>
+        <input
+          type="password"
+          id="senha"
+          name="senha"
+          placeholder="Mínimo de 8 caracteres"
+          minlength="8"
+          autocomplete="new-password"
+          required
+        >
+
+        <div id="grupoConfirmarSenha">
+          <label for="confirmarSenha">Confirmar senha</label>
+
+          <input
+            type="password"
+            id="confirmarSenha"
+            name="confirmarSenha"
+            placeholder="Digite a senha novamente"
+            minlength="8"
+            autocomplete="new-password"
+          >
+        </div>
+
+        <button type="button" id="btnEsqueciSenha" class="btn-link" hidden>
+          Esqueci minha senha
+        </button>
+
+        <button type="submit" class="btn-primario btn-cadastrar">
+          Criar conta
+        </button>
+      </form>
+
+      <p class="link-entrar">
+        <span id="textoAlternar">Já tem uma conta?</span>
+        <a href="#" id="linkEntrar">Entrar</a>
+      </p>
+
+      <p id="mensagemLogin" class="mensagem" role="status" aria-live="polite"></p>
+
+    </section>
+
+    <p class="auth-rodape">
+      Seus dados ficam protegidos na sua conta.
+    </p>
+
+  </main>
+
+</body>
+
+</html>

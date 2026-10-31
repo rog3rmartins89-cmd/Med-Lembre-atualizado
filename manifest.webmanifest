@@ -1,0 +1,58 @@
+{
+  "name": "MedLembre - Lembrete de medicamentos",
+  "short_name": "MedLembre",
+  "description": "Cadastre seus medicamentos, receba lembretes nos horários certos e acompanhe o histórico de doses.",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "start_url": "./painel.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#eaf5f2",
+  "theme_color": "#087e83",
+  "categories": ["health", "medical", "lifestyle"],
+  "icons": [
+    {
+      "src": "assets/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icons/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Adicionar remédio",
+      "short_name": "Adicionar",
+      "url": "./painel.html#cadastroMedicamento",
+      "icons": [
+        {
+          "src": "assets/icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Histórico",
+      "short_name": "Histórico",
+      "url": "./painel.html#historico",
+      "icons": [
+        {
+          "src": "assets/icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
+}

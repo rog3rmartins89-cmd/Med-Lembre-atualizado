@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8">
+
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+  <meta name="theme-color" content="#087e83">
+  <meta name="description"
+        content="Painel do MedLembre: cadastre medicamentos, receba lembretes e acompanhe seu histórico.">
+
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="MedLembre">
+
+  <title>MedLembre | Meu painel</title>
+
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="assets/icons/favicon-32.png" sizes="32x32">
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+
+  <link rel="stylesheet" href="css/style.css">
+
+  <script src="js/config.js"></script>
+  <script type="module" src="js/painel.js"></script>
+</head>
+
+<body class="tela-app">
+
+  <div class="app-shell">
+
+    <!-- BARRA SUPERIOR -->
+    <header class="app-bar">
+      <div class="app-bar-marca">
+        <span class="app-bar-icone" aria-hidden="true">💊</span>
+
+        <span class="app-bar-texto">
+          <strong>MedLembre</strong>
+          <small id="nomeUsuario">usuário</small>
+        </span>
+      </div>
+
+      <button
+        type="button"
+        id="btnAcessibilidade"
+        class="btn-icone"
+        aria-label="Abrir opções de acessibilidade e conta"
+        aria-controls="painelAcessibilidade"
+        aria-expanded="false"
+        title="Acessibilidade e conta"
+      >
+        Aa
+      </button>
+    </header>
+
+    <!-- PAINEL DE ACESSIBILIDADE -->
+    <div id="painelAcessibilidade" class="painel-acessibilidade" hidden>
+
+      <nav class="controles-acessibilidade"
+           aria-label="Configurações de acessibilidade">
+
+        <button type="button"
+                id="btnTemaClaro"
+                title="Ativar modo claro"
+                aria-label="Ativar modo claro">
+          ☀️
+        </button>
+
+        <button type="button"
+                id="btnTemaEscuro"
+                title="Ativar modo escuro"
+                aria-label="Ativar modo escuro">
+          🌙
+        </button>
+
+        <button type="button"
+                id="btnDaltonismo"
+                title="Ativar ou desativar alto contraste"
+                aria-label="Ativar ou desativar alto contraste"
+                aria-pressed="false">
+          👁️
+        </button>
+
+        <button type="button"
+                id="btnDiminuirFonte"
+                title="Diminuir tamanho da fonte"
+                aria-label="Diminuir tamanho da fonte">
+          A−
+        </button>
+
+        <button type="button"
+                id="btnAumentarFonte"
+                title="Aumentar tamanho da fonte"
+                aria-label="Aumentar tamanho da fonte">
+          A+
+        </button>
+
+      </nav>
+
+      <button type="button" id="btnLogout" class="btn-sair">
+        <span aria-hidden="true">↪</span>
+        Sair da conta
+      </button>
+
+    </div>
+
+    <!-- MENU / NAVEGAÇÃO -->
+    <aside class="menu-lateral">
+
+      <div class="menu-logo">
+        <h2>💊 MedLembre</h2>
+        <p>Seu cuidado, no seu tempo.</p>
+      </div>
+
+      <nav class="menu-navegacao" aria-label="Menu principal">
+
+        <a href="#inicio" class="menu-item ativo">
+          <span class="menu-icone" aria-hidden="true">🏠</span>
+          <span class="menu-texto">Início</span>
+        </a>
+
+        <a href="#meusMedicamentos" class="menu-item">
+          <span class="menu-icone" aria-hidden="true">💊</span>
+          <span class="menu-texto">Remédios</span>
+        </a>
+
+        <a href="#historico" class="menu-item">
+          <span class="menu-icone" aria-hidden="true">🕒</span>
+          <span class="menu-texto">Histórico</span>
+        </a>
+
+        <a href="#minhaConta" class="menu-item">
+          <span class="menu-icone" aria-hidden="true">👤</span>
+          <span class="menu-texto">Conta</span>
+        </a>
+
+      </nav>
+
+      <a href="#cadastroMedicamento"
+         id="btnAdicionarRemedio"
+         class="menu-adicionar"
+         aria-label="Adicionar remédio">
+        <span aria-hidden="true">＋</span>
+        <span class="menu-adicionar-texto">Adicionar remédio</span>
+      </a>
+
+    </aside>
+
+    <!-- CONTEÚDO -->
+    <main class="painel">
+
+      <header class="painel-cabecalho">
+        <h1>Olá, <span id="nomeUsuarioCabecalho">usuário</span>! 👋</h1>
+        <p>Bem-vindo ao seu espaço de cuidados.</p>
+      </header>
+
+      <!-- INÍCIO -->
+      <section class="boas-vindas cartao" id="inicio">
+
+        <div class="resumo-doses">
+          <div class="resumo-item">
+            <span class="resumo-icone" aria-hidden="true">📋</span>
+            <strong id="totalMedicamentos">0</strong>
+            <small>medicamentos</small>
+          </div>
+
+          <div class="resumo-item">
+            <span class="resumo-icone" aria-hidden="true">✅</span>
+            <strong id="dosesHoje">0</strong>
+            <small>doses hoje</small>
+          </div>
+        </div>
+
+        <div class="proxima-dose">
+          <span class="proxima-dose-rotulo">Próxima dose</span>
+          <p id="proximaDose">Cadastre um medicamento para começar.</p>
+        </div>
+
+        <div class="atalhos">
+          <a href="#cadastroMedicamento" class="btn-primario btn-atalho">
+            ＋ Adicionar remédio
+          </a>
+
+          <a href="#historico" class="btn-secundario btn-atalho">
+            🕒 Ver histórico
+          </a>
+        </div>
+
+      </section>
+
+      <!-- CADASTRO -->
+      <section class="cadastro-medicamento cartao" id="cadastroMedicamento">
+        <h2>💊 Cadastrar medicamento</h2>
+
+        <form id="formMedicamento">
+
+          <label for="nomeMedicamento">Nome do medicamento</label>
+
+          <div class="campo-busca">
+            <input
+              type="text"
+              id="nomeMedicamento"
+              placeholder="Ex.: Dipirona"
+              autocomplete="off"
+              autocapitalize="sentences"
+              required
+            >
+
+            <button type="button" id="btnBuscarMedicamento" class="btn-secundario">
+              🔍 Buscar
+            </button>
+          </div>
+
+          <div id="resultadoBusca" class="resultado-busca" aria-live="polite">
+            <p>Digite o nome de um medicamento e toque em Buscar.</p>
+          </div>
+
+          <input
+            type="hidden"
+            id="medicamentoSelecionado"
+            name="medicamentoSelecionado"
+          >
+
+          <p id="apresentacaoSelecionada" class="chip-selecao" hidden></p>
+
+          <label for="quantidadeMedicamento">Quantidade a tomar</label>
+          <input
+            type="text"
+            id="quantidadeMedicamento"
+            name="quantidadeMedicamento"
+            placeholder="Ex.: 1 comprimido, 2 gotas ou 5 mL"
+            maxlength="60"
+            autocomplete="off"
+            aria-describedby="ajudaQuantidade"
+            required
+          >
+          <p id="ajudaQuantidade" class="texto-ajuda">
+            Informe a quantidade conforme a receita médica.
+          </p>
+
+          <label for="horarioMedicamento">Horário da medicação</label>
+          <input
+            type="time"
+            id="horarioMedicamento"
+            required
+          >
+
+          <div class="campo-frequencia">
+            <label>Frequência</label>
+
+            <div class="botoes-frequencia">
+              <button type="button" id="btnTodosDias" class="btn-frequencia ativo" aria-pressed="true">
+                Todos os dias
+              </button>
+
+              <button type="button" id="btnDiasEspecificos" class="btn-frequencia" aria-pressed="false">
+                Dias específicos
+              </button>
+            </div>
+
+            <div id="areaDiasSemana" hidden>
+              <p class="texto-ajuda">Selecione os dias da semana:</p>
+
+              <div class="dias-semana">
+                <button type="button" data-dia="0" aria-pressed="false">Dom</button>
+                <button type="button" data-dia="1" aria-pressed="false">Seg</button>
+                <button type="button" data-dia="2" aria-pressed="false">Ter</button>
+                <button type="button" data-dia="3" aria-pressed="false">Qua</button>
+                <button type="button" data-dia="4" aria-pressed="false">Qui</button>
+                <button type="button" data-dia="5" aria-pressed="false">Sex</button>
+                <button type="button" data-dia="6" aria-pressed="false">Sáb</button>
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" class="btn-primario">
+            Salvar medicamento
+          </button>
+        </form>
+      </section>
+
+      <!-- MEUS MEDICAMENTOS -->
+      <section class="meus-medicamentos cartao" id="meusMedicamentos" hidden>
+        <h2>📋 Meus medicamentos</h2>
+
+        <div id="listaMedicamentos" class="lista-cartoes">
+          <p class="estado-vazio">Nenhum medicamento cadastrado ainda.</p>
+        </div>
+      </section>
+
+      <!-- HISTÓRICO -->
+      <section class="historico-medicamentos cartao" id="historico" hidden>
+        <h2>🕒 Histórico</h2>
+        <p class="texto-ajuda">
+          Medicamentos que você confirmou ter tomado.
+        </p>
+
+        <div id="listaHistorico" class="lista-cartoes"></div>
+      </section>
+
+      <!-- MINHA CONTA -->
+      <section id="minhaConta" class="minha-conta cartao" hidden>
+        <h2>👤 Minha conta</h2>
+        <p class="texto-ajuda">Informações da sua conta MedLembre.</p>
+
+        <div class="dados-conta">
+          <label for="nomeConta">Nome</label>
+          <input
+            type="text"
+            id="nomeConta"
+            autocomplete="name"
+            maxlength="60"
+            placeholder="Seu nome"
+          >
+
+          <button type="button" id="btnSalvarNome" class="btn-secundario">
+            Salvar nome
+          </button>
+
+          <p class="texto-ajuda">
+            No login com Google, o nome vem da sua conta. Você pode ajustar
+            como ele aparece no aplicativo.
+          </p>
+
+          <label for="emailConta">E-mail</label>
+          <input type="email" id="emailConta" readonly>
+
+          <label for="senhaConta">Senha</label>
+          <input
+            type="password"
+            id="senhaConta"
+            value="********"
+            readonly
+            aria-describedby="avisoSenha"
+          >
+
+          <p id="avisoSenha" class="texto-ajuda">
+            A senha não pode ser visualizada por segurança.
+          </p>
+
+          <p id="provedorConta" class="texto-ajuda"></p>
+        </div>
+
+        <!-- LEMBRETES -->
+        <div class="conta-cartao conta-cartao-lembretes">
+          <h3>🔔 Lembretes e alarmes</h3>
+
+          <p id="statusLembretes" class="texto-ajuda">
+            Ative os lembretes para receber uma notificação no horário de cada medicamento.
+          </p>
+
+          <button type="button" id="btnAtivarLembretes" class="btn-primario">
+            Ativar lembretes
+          </button>
+
+          <button type="button" id="btnTestarAlarme" class="btn-secundario">
+            🔈 Testar alarme agora
+          </button>
+        </div>
+
+        <!-- AJUDA -->
+        <div class="conta-cartao conta-cartao-ajuda">
+          <h3>❔ Precisa de ajuda?</h3>
+          <p>Veja como utilizar o MedLembre:</p>
+
+          <ol>
+            <li>
+              <strong>Cadastrar medicamento:</strong>
+              toque em "＋ Adicionar remédio", informe o medicamento, a
+              quantidade, o horário e a frequência. Depois toque em
+              "Salvar medicamento".
+            </li>
+
+            <li>
+              <strong>Consultar medicamentos:</strong>
+              toque em "Remédios" na barra inferior para ver os medicamentos
+              cadastrados.
+            </li>
+
+            <li>
+              <strong>Consultar o histórico:</strong>
+              toque em "Histórico" para ver os medicamentos que você confirmou
+              ter tomado usando "Já tomei".
+            </li>
+
+            <li>
+              <strong>Receber lembretes:</strong>
+              ative os lembretes acima e permita as notificações no celular.
+            </li>
+          </ol>
+        </div>
+
+        <!-- EMERGÊNCIA -->
+        <div class="conta-cartao conta-cartao-emergencia">
+          <h3>🚑 Emergências</h3>
+
+          <p>
+            Em caso de emergência médica, ligue para
+            <strong>192 (SAMU)</strong>.
+          </p>
+
+          <p>
+            Este aplicativo não substitui a avaliação ou a orientação de um
+            profissional de saúde.
+          </p>
+
+          <a href="tel:192"
+             class="btn-ligar-samu"
+             aria-label="Ligar para o SAMU no número 192">
+            📞 Ligar para 192 (SAMU)
+          </a>
+        </div>
+      </section>
+
+    </main>
+
+  </div>
+
+  <!-- DIÁLOGO DE EDIÇÃO -->
+  <dialog id="dialogEditar" class="dialogo">
+
+    <form id="formEditar">
+
+      <header class="dialogo-cabecalho">
+        <h2>Editar medicamento</h2>
+        <button type="button" id="btnFecharEdicao" class="btn-icone" aria-label="Fechar">
+          ✕
+        </button>
+      </header>
+
+      <p id="editarNome" class="dialogo-subtitulo"></p>
+
+      <label for="editarQuantidade">Quantidade</label>
+      <input
+        type="text"
+        id="editarQuantidade"
+        maxlength="60"
+        autocomplete="off"
+        required
+      >
+
+      <label for="editarHorario">Horário</label>
+      <input type="time" id="editarHorario" required>
+
+      <fieldset class="campo-frequencia">
+        <legend>Frequência</legend>
+
+        <div class="botoes-frequencia">
+          <label class="opcao-frequencia">
+            <input type="radio" name="frequenciaEdicao" value="todos" checked>
+            <span>Todos os dias</span>
+          </label>
+
+          <label class="opcao-frequencia">
+            <input type="radio" name="frequenciaEdicao" value="especificos">
+            <span>Dias específicos</span>
+          </label>
+        </div>
+
+        <div id="diasEditarArea" class="dias-semana" hidden>
+          <button type="button" data-dia="0" aria-pressed="false">Dom</button>
+          <button type="button" data-dia="1" aria-pressed="false">Seg</button>
+          <button type="button" data-dia="2" aria-pressed="false">Ter</button>
+          <button type="button" data-dia="3" aria-pressed="false">Qua</button>
+          <button type="button" data-dia="4" aria-pressed="false">Qui</button>
+          <button type="button" data-dia="5" aria-pressed="false">Sex</button>
+          <button type="button" data-dia="6" aria-pressed="false">Sáb</button>
+        </div>
+      </fieldset>
+
+      <div class="dialogo-acoes">
+        <button type="button" id="btnCancelarEdicao" class="btn-secundario">
+          Cancelar
+        </button>
+
+        <button type="submit" class="btn-primario">
+          Salvar alterações
+        </button>
+      </div>
+
+    </form>
+
+  </dialog>
+
+  <div id="toasts" class="toasts" aria-live="polite" aria-atomic="false"></div>
+
+</body>
+
+</html>

@@ -1,0 +1,109 @@
+name: Android APK
+
+# Compila o APK de debug sem precisar de Android Studio no computador.
+# O APK fica disponível em "Actions" > execução > "Artifacts" > MedLembre-apk.
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    name: Gerar APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Configurar Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Configurar Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Instalar plataforma e ferramentas do Android
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Montar conteúdo web
+        env:
+          MEDICAMENTOS_API_KEY: ${{ secrets.MEDICAMENTOS_API_KEY }}
+        run: npm run build:mobile
+
+      - name: Sincronizar projeto Android
+        run: npx cap sync android
+
+      - name: Preparar google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: node scripts/google-services-placeholder.js
+
+      - name: Restaurar keystore de debug
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: medlembre-debug-keystore-v1
+
+      - name: Compilar APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Mostrar SHA-1 e tamanho
+        run: |
+          SHA1_LINE="$(keytool -list -v \
+            -keystore ~/.android/debug.keystore \
+            -alias androiddebugkey \
+            -storepass android \
+            -keypass android 2>/dev/null | grep -E 'SHA1:|SHA-1:' | head -n 1 || true)"
+          echo "$SHA1_LINE" > android/app/build/outputs/apk/debug/SHA1.txt
+          {
+            echo "### APK MedLembre gerado"
+            echo ""
+            echo "Baixe em **Artifacts > MedLembre-apk**."
+            echo ""
+            echo "Dentro do artifact tambem esta o arquivo **SHA1.txt**."
+            echo ""
+            echo "SHA-1 do keystore de debug (use no Firebase para o login Google):"
+            echo ""
+            echo '```'
+            echo "$SHA1_LINE"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publicar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MedLembre-apk
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/outputs/apk/debug/SHA1.txt
+          if-no-files-found: error
+          retention-days: 30

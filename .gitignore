@@ -1,0 +1,26 @@
+# Dependências
+node_modules/
+
+# Chaves e configurações privadas
+.env
+.env.*
+!.env.example
+
+# Conteúdo web gerado pelo build mobile
+build/
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/capacitor-cordova-android-plugins/
+android/app/google-services.json
+*.jks
+*.keystore
+
+# Sistema
+.DS_Store
+Thumbs.db
+*.log
