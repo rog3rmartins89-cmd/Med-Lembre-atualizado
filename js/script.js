@@ -75,14 +75,39 @@ function nomeDoIdToken(idToken) {
 }
 
 /*
- * iPhone/iPad (inclusive Safari e Chrome no iOS) bloqueiam pop-up com muita
- * frequência, então nesses aparelhos usamos redirecionamento. No Android o
- * pop-up funciona melhor porque o retorno é imediato.
+ * iPhone/iPad (Safari e Chrome no iOS) costumam "perder" a sessão quando o
+ * login do Google volta por redirecionamento: a página retorna sem usuário e
+ * o app parece voltar para a tela de login. Por isso tentamos primeiro a
+ * janela do Google (pop-up) em todos os aparelhos. Se o navegador bloquear a
+ * janela, o fluxo cai automaticamente para o redirecionamento.
  */
-function usarRedirecionamento() {
+function marcarRedirecionamentoPendente() {
+  try {
+    sessionStorage.setItem("medlembre_redirect_pendente", "1");
+  } catch (erro) {
+    /* sem armazenamento */
+  }
+}
+
+function consumirRedirecionamentoPendente() {
+  try {
+    const pendente = sessionStorage.getItem("medlembre_redirect_pendente");
+
+    sessionStorage.removeItem("medlembre_redirect_pendente");
+
+    return pendente === "1";
+  } catch (erro) {
+    return false;
+  }
+}
+
+/* Navegador interno de WhatsApp, Instagram, Facebook etc. */
+function navegadorDeAplicativo() {
   const agente = navigator.userAgent || "";
 
-  return /iPhone|iPad|iPod/i.test(agente);
+  return /FBAN|FBAV|FB_IAB|Instagram|Messenger|Line\/|WhatsApp|Snapchat|Twitter|TikTok|Pinterest/i.test(
+    agente
+  );
 }
 
 const formCadastro = document.getElementById("formCadastro");
@@ -414,6 +439,21 @@ async function entrarComGoogle() {
   mostrarMensagem("Conectando ao Google...", "neutro");
   registrarDiagnostico("google:clique");
 
+  /*
+   * Se a janela do Google ficar aberta e o retorno nunca chegar, o botão não
+   * pode ficar travado para sempre. Depois de 2 minutos liberamos a tentativa.
+   */
+  const prazo = window.setTimeout(() => {
+    if (redirecionando) return;
+
+    btnGoogle.disabled = false;
+    mostrarMensagem(
+      "Se a janela do Google ainda estiver aberta, conclua o login nela e " +
+        "volte para esta aba. Se ela já fechou, toque em Entrar com Google de novo.",
+      "neutro"
+    );
+  }, 120000);
+
   try {
     await persistencia;
 
@@ -457,14 +497,11 @@ async function entrarComGoogle() {
           }
         );
       }
-    } else if (usarRedirecionamento()) {
-      // No iPhone/iPad o pop-up é bloqueado com frequência; o redirecionamento
-      // é o caminho recomendado pelo Firebase.
-      await signInWithRedirect(auth, provedorGoogle);
-      return;
     } else {
-      // No Android/desktop o pop-up devolve a credencial por postMessage e
-      // costuma ser mais confiável do que o redirecionamento.
+      /*
+       * Janela do Google primeiro: no iPhone é o caminho que devolve a sessão
+       * de forma confiável. Se o navegador barrar a janela, redirecionamos.
+       */
       try {
         await signInWithPopup(auth, provedorGoogle);
       } catch (erroPopup) {
@@ -473,9 +510,11 @@ async function entrarComGoogle() {
         if (
           codigo === "auth/popup-blocked" ||
           codigo === "auth/operation-not-supported-in-this-environment" ||
-          codigo === "auth/cancelled-popup-request"
+          codigo === "auth/cancelled-popup-request" ||
+          codigo === "auth/popup-closed-by-user"
         ) {
-          // Navegador sem suporte a pop-up: cai para o redirecionamento.
+          // Navegador sem suporte (ou janela fechada): usa o redirecionamento.
+          marcarRedirecionamentoPendente();
           await signInWithRedirect(auth, provedorGoogle);
           return;
         }
@@ -492,11 +531,27 @@ async function entrarComGoogle() {
     registrarDiagnostico("google:erro", erro);
     mostrarMensagem(descreverErroAuth(erro), "erro", (erro && erro.code) || "");
   } finally {
+    window.clearTimeout(prazo);
     btnGoogle.disabled = false;
   }
 }
 
 btnGoogle.addEventListener("click", entrarComGoogle);
+
+/*
+ * WhatsApp, Instagram e afins abrem o link dentro do próprio aplicativo, e o
+ * Google recusa o login nesses navegadores. Melhor avisar do que deixar o
+ * usuário tentando sem entender.
+ */
+if (navegadorDeAplicativo()) {
+  mostrarMensagem(
+    "Você abriu o MedLembre dentro de outro aplicativo (WhatsApp, Instagram...). " +
+      "O Google não permite entrar por aqui. Toque no menu (⋯) e escolha " +
+      "'Abrir no Chrome' ou 'Abrir no Safari'.",
+    "erro",
+    "navegador-de-app"
+  );
+}
 
 /* ------------------------- recuperar senha ----------------------------- */
 
@@ -532,15 +587,29 @@ btnEsqueciSenha.addEventListener("click", async () => {
 
 /* ------------------------------- sessão -------------------------------- */
 
-// Retorno do login com Google por redirecionamento (celular).
+// Retorno do login com Google por redirecionamento (quando o pop-up falhou).
+const veioDeRedirecionamento = consumirRedirecionamentoPendente();
+
 getRedirectResult(auth)
   .then((resultado) => {
     if (resultado && resultado.user) {
       mostrarMensagem("Login realizado! Abrindo seu painel...", "sucesso");
       registrarDiagnostico("redirect:usuario");
       concluirLogin();
-    } else {
-      registrarDiagnostico("redirect:sem-resultado");
+      return;
+    }
+
+    registrarDiagnostico("redirect:sem-resultado");
+
+    if (veioDeRedirecionamento) {
+      mostrarMensagem(
+        "O Google concluiu, mas este navegador não devolveu a sessão. " +
+          "Toque em Entrar com Google de novo: agora o app abre a janela do " +
+          "Google, que funciona melhor no iPhone. Se ainda assim não entrar, " +
+          "use o login com e-mail e senha.",
+        "erro",
+        "redirect-sem-sessao"
+      );
     }
   })
   .catch((erro) => {
