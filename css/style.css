@@ -423,6 +423,14 @@ fieldset {
   color: var(--sucesso);
 }
 
+.mensagem-codigo {
+  display: block;
+  margin-top: 0.35em;
+  font-size: 0.78em;
+  opacity: 0.75;
+  word-break: break-all;
+}
+
 .auth-rodape {
   text-align: center;
   font-size: 0.76em;

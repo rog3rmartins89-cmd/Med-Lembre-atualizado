@@ -11,6 +11,30 @@ import { getAuth, onAuthStateChanged, signOut, updateProfile }
 import { isNativo } from "./nativo.js";
 import { buscarMedicamentos, buscarApresentacoes } from "./api.js";
 
+/*
+ * Diagnóstico do login no navegador: envia apenas o passo do fluxo e o
+ * navegador usado. Nunca envia dados da conta.
+ */
+function registrarDiagnostico(etapa) {
+  if (isNativo()) return;
+
+  try {
+    fetch("/diagnostico/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        etapa,
+        codigo: "",
+        mensagem: "",
+        agente: navigator.userAgent || ""
+      }),
+      keepalive: true
+    }).catch(() => {});
+  } catch (erro) {
+    // diagnóstico nunca deve atrapalhar o app
+  }
+}
+
 import {
   CHAVES,
   gerarId,
@@ -331,6 +355,10 @@ function aplicarUsuario(usuario) {
 
 onAuthStateChanged(auth, (usuario) => {
   if (!usuario) {
+    // Diagnóstico: mostra no servidor se o painel abriu sem sessão (é o que
+    // provoca o "volta para o login").
+    registrarDiagnostico("painel:sem-usuario");
+
     // Uma única leitura nula pode acontecer logo depois do login (enquanto o
     // Firebase termina de restaurar a sessão). Antes de devolver para a tela
     // de login, confirma que realmente não há usuário autenticado.
@@ -345,6 +373,7 @@ onAuthStateChanged(auth, (usuario) => {
     return;
   }
 
+  registrarDiagnostico("painel:com-usuario");
   usuarioAtual = usuario;
   aplicarUsuario(usuario);
   iniciarPainel();

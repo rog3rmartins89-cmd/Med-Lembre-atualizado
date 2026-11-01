@@ -36,8 +36,16 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const provedorGoogle = new GoogleAuthProvider();
 
+/*
+ * Sem armazenamento o login funciona, mas a sessão se perde ao trocar de
+ * página (o painel devolveria para a tela de login). Avisamos o usuário em vez
+ * de fingir que entrou.
+ */
+let armazenamentoBloqueado = false;
+
 const persistencia = setPersistence(auth, browserLocalPersistence).catch(
   (erro) => {
+    armazenamentoBloqueado = true;
     console.warn("Não foi possível manter a sessão:", erro);
   }
 );
@@ -100,12 +108,21 @@ let redirecionando = false;
 
 /* ------------------------------ mensagens ------------------------------ */
 
-function mostrarMensagem(texto, tipo = "neutro") {
+function mostrarMensagem(texto, tipo = "neutro", codigo = "") {
   mensagem.textContent = texto;
   mensagem.className = "mensagem";
 
   if (tipo === "sucesso") mensagem.classList.add("sucesso");
   if (tipo === "erro") mensagem.classList.add("erro");
+
+  // Mostra o código técnico do Firebase. Ajuda a identificar o problema sem
+  // precisar abrir o console do navegador.
+  if (codigo) {
+    const detalhe = document.createElement("small");
+    detalhe.className = "mensagem-codigo";
+    detalhe.textContent = `código: ${codigo}`;
+    mensagem.appendChild(detalhe);
+  }
 }
 
 function irParaPainel() {
@@ -113,6 +130,51 @@ function irParaPainel() {
 
   redirecionando = true;
   window.location.replace("painel.html");
+}
+
+/*
+ * Depois de autenticar, só entra no painel se a sessão vai sobreviver à troca
+ * de página. Sem armazenamento o painel abriria e voltaria para o login — o
+ * famoso "simula que entrou e volta".
+ */
+function concluirLogin() {
+  if (armazenamentoBloqueado) {
+    mostrarMensagem(
+      "Sua conta foi aceita, mas o navegador está bloqueando o armazenamento " +
+        "do site, então a sessão não é mantida. Permita cookies para este " +
+        "endereço (e saia da navegação anônima) e tente novamente.",
+      "erro",
+      "storage"
+    );
+    return;
+  }
+
+  mostrarMensagem("Login realizado! Abrindo seu painel...", "sucesso");
+  irParaPainel();
+}
+
+/*
+ * Envia para o servidor local apenas o código do erro e o navegador usado,
+ * para conseguirmos diagnosticar o login no celular. Nada de dados pessoais.
+ */
+function registrarDiagnostico(etapa, erro) {
+  if (isNativo()) return;
+
+  try {
+    fetch("/diagnostico/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        etapa,
+        codigo: (erro && erro.code) || "",
+        mensagem: (erro && erro.message) || "",
+        agente: navigator.userAgent || ""
+      }),
+      keepalive: true
+    }).catch(() => {});
+  } catch (erroEnvio) {
+    // diagnóstico nunca deve atrapalhar o login
+  }
 }
 
 function descreverErroAuth(erro) {
@@ -132,6 +194,25 @@ function descreverErroAuth(erro) {
 
     case "auth/operation-not-allowed":
       return "Este tipo de login não está habilitado no Firebase.";
+
+    case "auth/account-exists-with-different-credential":
+      return (
+        "Este e-mail já tem uma conta criada de outra forma (e-mail e senha). " +
+        "Entre com e-mail e senha; se não lembrar a senha, use 'Esqueci minha senha'."
+      );
+
+    case "auth/credential-already-in-use":
+      return "Esta conta Google já está ligada a outro cadastro.";
+
+    case "auth/internal-error":
+    case "auth/argument-error":
+      return (
+        "O Google respondeu, mas o Firebase recusou a sessão. " +
+        "Feche o app, abra de novo e tente outra vez."
+      );
+
+    case "auth/web-storage-unsupported":
+      return "O navegador está bloqueando o armazenamento do site. Permita cookies e tente novamente.";
 
     case "auth/network-request-failed":
       return "Erro de conexão. Verifique sua internet e tente novamente.";
@@ -166,9 +247,6 @@ function descreverErroAuth(erro) {
         "O endereço deste app não está autorizado no Firebase. " +
         "Adicione o domínio em Authentication > Settings > Authorized domains."
       );
-
-    case "auth/web-storage-unsupported":
-      return "O navegador bloqueou o armazenamento. Saia da janela anônima e tente novamente.";
 
     case "auth/missing-email":
       return "Digite seu e-mail para recuperar a senha.";
@@ -319,10 +397,10 @@ formCadastro.addEventListener("submit", async (evento) => {
     }
 
     mostrarMensagem("Tudo certo! Abrindo seu painel...", "sucesso");
-    irParaPainel();
+    concluirLogin();
   } catch (erro) {
     console.error("Erro na autenticação:", erro);
-    mostrarMensagem(descreverErroAuth(erro), "erro");
+    mostrarMensagem(descreverErroAuth(erro), "erro", (erro && erro.code) || "");
   } finally {
     fluxoManual = false;
     btnCadastrar.disabled = false;
@@ -334,6 +412,7 @@ formCadastro.addEventListener("submit", async (evento) => {
 async function entrarComGoogle() {
   btnGoogle.disabled = true;
   mostrarMensagem("Conectando ao Google...", "neutro");
+  registrarDiagnostico("google:clique");
 
   try {
     await persistencia;
@@ -406,10 +485,12 @@ async function entrarComGoogle() {
     }
 
     mostrarMensagem("Login realizado! Abrindo seu painel...", "sucesso");
-    irParaPainel();
+    registrarDiagnostico("google:sucesso");
+    concluirLogin();
   } catch (erro) {
     console.error("Erro no login com Google:", erro);
-    mostrarMensagem(descreverErroAuth(erro), "erro");
+    registrarDiagnostico("google:erro", erro);
+    mostrarMensagem(descreverErroAuth(erro), "erro", (erro && erro.code) || "");
   } finally {
     btnGoogle.disabled = false;
   }
@@ -443,7 +524,7 @@ btnEsqueciSenha.addEventListener("click", async () => {
     );
   } catch (erro) {
     console.error("Erro ao enviar recuperação:", erro);
-    mostrarMensagem(descreverErroReset(erro), "erro");
+    mostrarMensagem(descreverErroReset(erro), "erro", (erro && erro.code) || "");
   } finally {
     btnEsqueciSenha.disabled = false;
   }
@@ -456,20 +537,28 @@ getRedirectResult(auth)
   .then((resultado) => {
     if (resultado && resultado.user) {
       mostrarMensagem("Login realizado! Abrindo seu painel...", "sucesso");
-      irParaPainel();
+      registrarDiagnostico("redirect:usuario");
+      concluirLogin();
+    } else {
+      registrarDiagnostico("redirect:sem-resultado");
     }
   })
   .catch((erro) => {
     console.error("Erro no retorno do login com Google:", erro);
-    mostrarMensagem(descreverErroAuth(erro), "erro");
+    registrarDiagnostico("redirect:erro", erro);
+    mostrarMensagem(descreverErroAuth(erro), "erro", (erro && erro.code) || "");
   });
 
 // Se o usuário já estiver autenticado, vai direto para o painel.
 // Durante um login/cadastro manual o redirecionamento é feito pelo próprio
 // fluxo, depois de salvar o nome do usuário.
 onAuthStateChanged(auth, (usuario) => {
+  registrarDiagnostico(usuario ? "auth:com-usuario" : "auth:sem-usuario");
+
   if (usuario && !fluxoManual) {
-    irParaPainel();
+    // Passa pela mesma verificação de armazenamento: se a sessão não vai
+    // sobreviver à troca de página, o painel devolveria para o login.
+    concluirLogin();
   }
 });
 

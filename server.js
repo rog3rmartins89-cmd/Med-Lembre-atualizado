@@ -243,6 +243,42 @@ app.get("/api/medicamentos/:registro", async (req, res) => {
   }
 });
 
+/* ------------------- diagnóstico temporário de login --------------------- */
+/*
+ * O login no celular é difícil de investigar sem ver a tela do aparelho.
+ * O app envia para o servidor apenas o código do erro e o navegador usado —
+ * nunca e-mail, senha ou token. O registro fica em logs/login.log e pode ser
+ * removido quando o problema estiver resolvido.
+ */
+
+const fs = require("node:fs");
+const LOG_DIAGNOSTICO = path.join(RAIZ, "logs", "login.log");
+
+app.post(
+  "/diagnostico/login",
+  express.json({ limit: "8kb" }),
+  (req, res) => {
+    const dados = req.body || {};
+    const linha = JSON.stringify({
+      quando: new Date().toISOString(),
+      etapa: String(dados.etapa || "").slice(0, 80),
+      codigo: String(dados.codigo || "").slice(0, 120),
+      mensagem: String(dados.mensagem || "").slice(0, 300),
+      agente: String(dados.agente || "").slice(0, 300)
+    });
+
+    try {
+      fs.mkdirSync(path.dirname(LOG_DIAGNOSTICO), { recursive: true });
+      fs.appendFileSync(LOG_DIAGNOSTICO, linha + "\n", "utf8");
+    } catch (erro) {
+      console.warn("Não foi possível gravar o diagnóstico:", erro.message);
+    }
+
+    console.log("[diagnóstico]", linha);
+    res.status(204).end();
+  }
+);
+
 /* ------------------------------ 404 / erro ------------------------------- */
 
 app.use((req, res) => {
