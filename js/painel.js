@@ -1415,8 +1415,8 @@ async function atualizarStatusLembretes() {
 
   statusLembretesTexto.textContent =
     status.permissao === "granted"
-      ? "Lembretes ativos enquanto este app estiver aberto no navegador."
-      : "As notificações do navegador estão bloqueadas; o aviso por voz continua com a página aberta.";
+      ? "Lembretes ativos. No navegador, o aviso (notificação e voz) toca com esta página aberta."
+      : "As notificações do navegador estão bloqueadas. O aviso por voz continua com a página aberta e o volume de mídia ligado.";
 }
 
 btnAtivarLembretes.addEventListener("click", async () => {

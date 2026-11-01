@@ -38,4 +38,14 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!--
+      Android 11+ esconde os aplicativos de voz instalados. Sem esta consulta o
+      plugin de voz não encontra o motor de síntese e o alarme fica mudo.
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
 </manifest>

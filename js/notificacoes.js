@@ -9,7 +9,12 @@
  */
 
 import { isNativo, chamarNativo, pluginNativo } from "./nativo.js";
-import { getMedicamentos, dataLocalDe, CHAVES } from "./armazenamento.js";
+import {
+  getMedicamentos,
+  dataLocalDe,
+  doseJaRegistrada,
+  CHAVES
+} from "./armazenamento.js";
 
 const CANAL = "lembretes";
 const ICONE = "assets/icons/icon-192.png";
@@ -17,41 +22,329 @@ const ICONE = "assets/icons/icon-192.png";
 let intervaloWeb = null;
 let listenersRegistrados = false;
 
-/* ----------------------------- utilidades ------------------------------ */
+/* ------------------------------- voz ----------------------------------- */
 
-function falarTexto(texto) {
+/*
+ * Falar no celular tem três pegadinhas que fazem a voz sumir sem erro:
+ *
+ *  1. getVoices() costuma vir vazio nas primeiras chamadas, porque o aparelho
+ *     ainda está carregando as vozes. Se falarmos nesse momento, silêncio.
+ *  2. speechSynthesis.cancel() seguido de speak() na mesma tarefa faz o Chrome
+ *     descartar a fala sem avisar.
+ *  3. No Android a síntese às vezes começa "pausada" e nunca sai do lugar.
+ *
+ * Além disso, o WebView do APK nem sempre tem síntese de voz. Por isso o app
+ * tenta primeiro o plugin nativo de voz e só depois a voz do navegador.
+ */
+
+let filaDeFala = Promise.resolve();
+let vozesCarregando = null;
+let contextoAudio = null;
+let toqueRegistrado = false;
+
+function esperar(ms) {
+  return new Promise((resolver) => setTimeout(resolver, ms));
+}
+
+/* ------------------------- som de alerta (bipe) ------------------------- */
+
+/*
+ * No iPhone o Chrome não tem notificações do site. Se a voz falhar, o bipe
+ * ainda avisa. Também serve para Android/desktop quando o volume de mídia
+ * está baixo e o usuário não percebe só a fala.
+ */
+
+function obterContextoAudio() {
+  if (typeof window === "undefined") return null;
+
+  const Ctor = window.AudioContext || window.webkitAudioContext;
+
+  if (!Ctor) return null;
+
+  if (!contextoAudio) {
+    try {
+      contextoAudio = new Ctor();
+    } catch (erro) {
+      return null;
+    }
+  }
+
+  return contextoAudio;
+}
+
+function prepararSom() {
+  const contexto = obterContextoAudio();
+
+  if (!contexto) return;
+
   try {
-    if (!("speechSynthesis" in window)) return;
+    if (contexto.state === "suspended") contexto.resume().catch(() => {});
 
-    const sintese = window.speechSynthesis;
-    sintese.cancel();
+    // Toque inaudível: destrava o áudio depois do toque do usuário.
+    const oscilador = contexto.createOscillator();
+    const volume = contexto.createGain();
 
-    const vozes = sintese.getVoices();
-    const vozPt =
-      vozes.find(
-        (voz) =>
-          voz.lang &&
-          voz.lang.toLowerCase().startsWith("pt-br") &&
-          /female|feminina|maria|francisca|luciana|google/i.test(voz.name)
-      ) ||
-      vozes.find((voz) => voz.lang && voz.lang.toLowerCase().startsWith("pt-br")) ||
-      null;
-
-    const mensagem = new SpeechSynthesisUtterance(texto);
-    mensagem.lang = "pt-BR";
-    mensagem.rate = 0.9;
-    mensagem.volume = 1;
-
-    if (vozPt) mensagem.voice = vozPt;
-
-    sintese.speak(mensagem);
+    volume.gain.value = 0.0001;
+    oscilador.connect(volume).connect(contexto.destination);
+    oscilador.start();
+    oscilador.stop(contexto.currentTime + 0.02);
   } catch (erro) {
-    console.warn("Voz indisponível:", erro);
+    /* sem áudio */
   }
 }
 
+function alertaSonoro() {
+  const contexto = obterContextoAudio();
+
+  if (!contexto) return;
+
+  try {
+    if (contexto.state === "suspended") contexto.resume().catch(() => {});
+
+    const inicio = contexto.currentTime;
+
+    [0, 0.4].forEach((atraso) => {
+      const oscilador = contexto.createOscillator();
+      const volume = contexto.createGain();
+
+      oscilador.type = "sine";
+      oscilador.frequency.value = 880;
+
+      volume.gain.setValueAtTime(0.0001, inicio + atraso);
+      volume.gain.exponentialRampToValueAtTime(0.3, inicio + atraso + 0.02);
+      volume.gain.exponentialRampToValueAtTime(0.0001, inicio + atraso + 0.3);
+
+      oscilador.connect(volume).connect(contexto.destination);
+      oscilador.start(inicio + atraso);
+      oscilador.stop(inicio + atraso + 0.32);
+    });
+  } catch (erro) {
+    /* sem áudio */
+  }
+}
+
+/*
+ * Diagnóstico temporário: registra no servidor o que aconteceu com a voz
+ * (nunca o nome do medicamento nem dados da conta).
+ */
+function relatarVoz(etapa, detalhe = "") {
+  if (isNativo()) return;
+
+  try {
+    fetch("/diagnostico/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        etapa,
+        codigo: String(detalhe || "").slice(0, 120),
+        mensagem: "",
+        agente: navigator.userAgent || ""
+      }),
+      keepalive: true
+    }).catch(() => {});
+  } catch (erro) {
+    /* diagnóstico nunca deve atrapalhar o alarme */
+  }
+}
+
+function carregarVozes() {
+  if (!("speechSynthesis" in window)) return Promise.resolve([]);
+
+  const sintese = window.speechSynthesis;
+  const atuais = sintese.getVoices();
+
+  if (atuais && atuais.length) return Promise.resolve(atuais);
+
+  if (!vozesCarregando) {
+    vozesCarregando = new Promise((resolver) => {
+      let concluido = false;
+
+      const terminar = () => {
+        if (concluido) return;
+        concluido = true;
+
+        if (typeof sintese.removeEventListener === "function") {
+          sintese.removeEventListener("voiceschanged", terminar);
+        }
+
+        resolver(sintese.getVoices() || []);
+      };
+
+      if (typeof sintese.addEventListener === "function") {
+        sintese.addEventListener("voiceschanged", terminar);
+      }
+
+      // Se o aparelho não avisar quando as vozes carregarem, não travamos o app.
+      setTimeout(terminar, 1500);
+    }).then((vozes) => {
+      // Lista vazia pode ser só demora: permite tentar de novo na próxima fala.
+      if (!vozes.length) vozesCarregando = null;
+      return vozes;
+    });
+  }
+
+  return vozesCarregando;
+}
+
+function escolherVoz(vozes) {
+  if (!Array.isArray(vozes) || !vozes.length) return null;
+
+  const ehPortugues = (voz) =>
+    String((voz && voz.lang) || "").toLowerCase().startsWith("pt");
+
+  const feminina = /female|feminina|maria|francisca|luciana|google/i;
+
+  return (
+    vozes.find(
+      (voz) => ehPortugues(voz) && feminina.test(String(voz.name || ""))
+    ) ||
+    vozes.find((voz) => ehPortugues(voz)) ||
+    null
+  );
+}
+
+async function falarNativo(texto) {
+  const plugin = pluginNativo("TextToSpeech");
+
+  if (!plugin) return false;
+
+  try {
+    await chamarNativo("TextToSpeech", "speak", {
+      text: texto,
+      lang: "pt-BR",
+      rate: 0.9,
+      pitch: 1,
+      volume: 1
+    });
+
+    return true;
+  } catch (erro) {
+    console.warn("Voz nativa indisponível, tentando a do navegador:", erro);
+    return false;
+  }
+}
+
+async function falarNoNavegador(texto) {
+  if (
+    !("speechSynthesis" in window) ||
+    typeof SpeechSynthesisUtterance !== "function"
+  ) {
+    relatarVoz("voz:sem-suporte");
+    return;
+  }
+
+  const sintese = window.speechSynthesis;
+  const vozes = await carregarVozes();
+  const voz = escolherVoz(vozes);
+
+  try {
+    sintese.cancel();
+  } catch (erro) {
+    /* ignore */
+  }
+
+  // Sem este respiro o Chrome ignora a fala depois do cancel().
+  await esperar(150);
+
+  const mensagem = new SpeechSynthesisUtterance(texto);
+
+  mensagem.lang = (voz && voz.lang) || "pt-BR";
+  mensagem.rate = 0.9;
+  mensagem.volume = 1;
+
+  if (voz) mensagem.voice = voz;
+
+  mensagem.onstart = () => relatarVoz("voz:iniciou");
+  mensagem.onend = () => relatarVoz("voz:terminou");
+  mensagem.onerror = (evento) =>
+    relatarVoz(
+      "voz:erro",
+      (evento && (evento.error || evento.message)) || "desconhecido"
+    );
+
+  try {
+    if (sintese.paused) sintese.resume();
+    sintese.speak(mensagem);
+  } catch (erro) {
+    relatarVoz("voz:excecao", (erro && erro.message) || "");
+    return;
+  }
+
+  relatarVoz(
+    voz ? "voz:falando" : "voz:falando-sem-voz-pt",
+    voz ? `${voz.lang}|${voz.name}` : `vozes=${vozes.length}`
+  );
+
+  // No Android a síntese pode ficar parada em "pausada".
+  setTimeout(() => {
+    try {
+      if (sintese.paused) sintese.resume();
+    } catch (erro) {
+      /* ignore */
+    }
+  }, 600);
+}
+
+async function tentarFalar(texto) {
+  if (isNativo() && (await falarNativo(texto))) return;
+
+  await falarNoNavegador(texto);
+}
+
+/*
+ * As falas entram numa fila: duas ao mesmo tempo se cancelariam no celular.
+ * Quem chama não precisa esperar (o alarme toca em segundo plano).
+ */
+function falarTexto(texto) {
+  const conteudo = String(texto || "").trim();
+
+  if (!conteudo) return filaDeFala;
+
+  filaDeFala = filaDeFala
+    .then(() => tentarFalar(conteudo))
+    .catch((erro) => {
+      console.warn("Voz indisponível:", erro);
+      relatarVoz("voz:falha", (erro && erro.message) || "");
+    });
+
+  return filaDeFala;
+}
+
 export function falar(mensagem) {
-  falarTexto(mensagem);
+  return falarTexto(mensagem);
+}
+
+/* Usado pela tela de lembretes para avisar quando o aparelho não tem voz. */
+export async function vozDisponivel() {
+  if (isNativo()) return Boolean(pluginNativo("TextToSpeech"));
+  if (!("speechSynthesis" in window)) return false;
+
+  const vozes = await carregarVozes();
+
+  return vozes.length > 0 || typeof SpeechSynthesisUtterance === "function";
+}
+
+/*
+ * "Destrava" o áudio do navegador. Precisa ser chamado de dentro de um toque
+ * do usuário (um clique), senão o celular mantém a voz bloqueada.
+ */
+export function prepararVoz() {
+  // O bipe também precisa de um toque para ser liberado no celular.
+  prepararSom();
+
+  if (!("speechSynthesis" in window)) return;
+
+  try {
+    const sintese = window.speechSynthesis;
+    sintese.resume();
+
+    const aquece = new SpeechSynthesisUtterance(" ");
+    aquece.volume = 0.01;
+    aquece.lang = "pt-BR";
+    sintese.speak(aquece);
+  } catch (erro) {
+    /* sem áudio liberado */
+  }
 }
 
 function vibrar(padrao = [200, 120, 200]) {
@@ -267,12 +560,25 @@ function verificarWeb() {
     if (!diaPermitido(medicamento, diaSemana)) continue;
 
     const { hora, minuto } = partesHorario(medicamento.horario);
+    const minutosAlvo = hora * 60 + minuto;
+    const atraso = minutosAgora - minutosAlvo;
 
-    if (hora * 60 + minuto !== minutosAgora) continue;
+    /*
+     * O navegador atrasa (ou congela) os timers quando a aba fica em segundo
+     * plano. Antes só disparava no minuto exato — qualquer atraso fazia o
+     * alarme passar em branco. Agora aceitamos alguns minutos de tolerância.
+     */
+    if (atraso < 0 || atraso > 4) continue;
 
     const chave = `medlembre_disparo_${medicamento.id}_${medicamento.horario}_${dataLocal}`;
 
     if (localStorage.getItem(chave) === "true") continue;
+
+    // Se a dose já foi registrada no histórico, não avisa de novo.
+    if (doseJaRegistrada(medicamento.id, medicamento.horario, dataLocal)) {
+      localStorage.setItem(chave, "true");
+      continue;
+    }
 
     localStorage.setItem(chave, "true");
 
@@ -281,8 +587,12 @@ function verificarWeb() {
       : `Está na hora de tomar ${medicamento.nome}`;
 
     notificarWeb("💊 Hora do remédio", corpo, `med-${medicamento.id}`);
-    falarTexto(`É hora de tomar ${medicamento.nome}`);
+    alertaSonoro();
+    falarTexto(
+      `É hora de tomar ${medicamento.nome}. É hora de tomar ${medicamento.nome}.`
+    );
     vibrar();
+    relatarVoz("alarme:disparado", `atraso=${atraso}`);
   }
 }
 
@@ -291,6 +601,33 @@ function iniciarVigiaWeb() {
 
   verificarWeb();
   intervaloWeb = window.setInterval(verificarWeb, 20000);
+
+  /*
+   * Ao voltar para o app (ou destravar a tela), confere na hora se algum
+   * horário passou enquanto a página estava congelada.
+   */
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") verificarWeb();
+    });
+
+    /*
+     * No iPhone a voz e o som só são liberados depois de um toque na página.
+     * Destravamos no primeiro toque, seja qual for, para o alarme poder falar
+     * mais tarde sem depender do botão de lembretes.
+     */
+    if (!toqueRegistrado) {
+      toqueRegistrado = true;
+
+      document.addEventListener(
+        "pointerdown",
+        () => {
+          prepararVoz();
+        },
+        { once: true, passive: true }
+      );
+    }
+  }
 }
 
 function pararVigiaWeb() {
@@ -355,6 +692,9 @@ export async function ativarLembretes() {
   }
 
   definirAtivos(true);
+
+  // Aproveita o toque para liberar o áudio do navegador.
+  prepararVoz();
 
   if ("Notification" in window && Notification.permission !== "granted") {
     const permissao = await Notification.requestPermission().catch(
@@ -443,7 +783,9 @@ export async function testarAlarme(nome = "Losartana") {
       }).catch((erro) => console.warn("Teste de notificação falhou:", erro));
     }
   } else {
+    prepararVoz();
     notificarWeb(titulo, corpo, "med-teste");
+    alertaSonoro();
   }
 
   falarTexto(`É hora de tomar ${nome}. É hora de tomar ${nome}.`);
@@ -451,7 +793,8 @@ export async function testarAlarme(nome = "Losartana") {
 
   return {
     ok: true,
-    mensagem: "Alarme de teste disparado."
+    mensagem:
+      "Alarme de teste disparado. Se a voz não sair, aumente o volume de mídia do celular."
   };
 }
 

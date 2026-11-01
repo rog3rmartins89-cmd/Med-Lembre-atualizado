@@ -31,6 +31,7 @@
   },
   "homepage": "https://github.com/camilasantos1989/MedHora#readme",
   "dependencies": {
+    "@capacitor-community/text-to-speech": "^8.0.2",
     "@capacitor-firebase/authentication": "^8.5.2",
     "@capacitor/android": "^8.6.0",
     "@capacitor/app": "^8.1.2",
