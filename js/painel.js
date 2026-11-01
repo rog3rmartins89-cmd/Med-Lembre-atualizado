@@ -1056,7 +1056,10 @@ async function buscarMedicamentoSelecionado() {
     }
   } catch (erro) {
     console.error(erro);
-    mensagemBusca(`⚠️ ${erro.message}`);
+    mensagemBusca(
+      `⚠️ ${erro.message} Você pode digitar o nome e salvar o medicamento ` +
+        "mesmo sem a busca."
+    );
     toast(erro.message, "erro");
   } finally {
     btnBuscarMedicamento.disabled = false;
@@ -1206,11 +1209,8 @@ formMedicamento.addEventListener("submit", async (evento) => {
     return;
   }
 
-  if (!selecionado) {
-    toast("Busque e selecione a apresentação do medicamento.", "erro");
-    btnBuscarMedicamento.focus();
-    return;
-  }
+  // A apresentação é opcional: a busca depende da API de medicamentos e pode
+  // estar indisponível. Nesse caso o cadastro segue só com o nome digitado.
 
   if (!quantidade) {
     toast("Informe a quantidade a tomar.", "erro");
@@ -1228,6 +1228,8 @@ formMedicamento.addEventListener("submit", async (evento) => {
     toast("Escolha pelo menos um dia da semana.", "erro");
     return;
   }
+
+  const salvoSemApresentacao = !selecionado;
 
   adicionarMedicamento({
     id: gerarId(),
@@ -1248,7 +1250,12 @@ formMedicamento.addEventListener("submit", async (evento) => {
   atualizarResumo();
   await sincronizarLembretes();
 
-  toast("Medicamento cadastrado com sucesso!", "sucesso");
+  toast(
+    salvoSemApresentacao
+      ? "Medicamento cadastrado sem apresentação."
+      : "Medicamento cadastrado com sucesso!",
+    "sucesso"
+  );
 });
 
 /* --------------------------- editar medicamento ------------------------- */

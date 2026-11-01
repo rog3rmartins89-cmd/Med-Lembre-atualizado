@@ -141,7 +141,8 @@ function validarChave(res) {
   responderErroApi(
     res,
     500,
-    "A chave da API não está configurada no servidor. Crie o arquivo .env com MEDICAMENTOS_API_KEY."
+    "A busca de medicamentos está desativada neste servidor: falta a chave da API. " +
+      "Você ainda pode cadastrar o medicamento digitando o nome."
   );
 
   return false;
